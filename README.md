@@ -18,7 +18,7 @@ A command-line tool that displays tips and tricks for the [Kitty terminal emulat
 ### Quick Install (recommended)
 
 ```bash
-git clone https://github.com/thanhnguyen/kitty-tips.git
+git clone https://github.com/PrimeWalkerVN/kitty-tips.git
 cd kitty-tips
 ./install.sh
 ```
