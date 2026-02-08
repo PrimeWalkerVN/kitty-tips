@@ -317,29 +317,30 @@ cmd_search() {
     local found=0
 
     show_header
-    echo "  ${BOLD}Search results for \"${query}\":${RESET}"
+    echo "  ${BOLD}🔍 Search results for \"${query}\"${RESET}"
     echo ""
 
     local i
+    local query_lower
+    query_lower=$(to_lower "$query")
+
     for i in "${!TIP_IDS[@]}"; do
         local title_lower
         title_lower=$(to_lower "${TIP_TITLES[$i]}")
         local desc_lower
         desc_lower=$(to_lower "${TIP_DESCRIPTIONS[$i]}")
-        local query_lower
-        query_lower=$(to_lower "$query")
 
         if [[ "$title_lower" == *"$query_lower"* ]] || [[ "$desc_lower" == *"$query_lower"* ]]; then
-            show_tip_compact "${TIP_IDS[$i]}" "${TIP_CATEGORIES[$i]}" "${TIP_TITLES[$i]}"
+            show_tip "${TIP_IDS[$i]}" "${TIP_CATEGORIES[$i]}" "${TIP_TITLES[$i]}" "${TIP_DESCRIPTIONS[$i]}"
+            echo ""
             found=$((found + 1))
         fi
     done
 
-    echo ""
     if [ "$found" -eq 0 ]; then
-        echo "  No tips found matching \"${query}\"."
+        echo "  No tips found matching \"${query}\". Try a different keyword."
     else
-        echo "  ${DIM}${found} tip(s) found.${RESET}"
+        echo "  ${DIM}Found ${found} tip(s) matching \"${query}\".${RESET}"
     fi
 }
 
