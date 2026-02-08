@@ -1,0 +1,83 @@
+#compdef kitty-tips
+# Zsh completion for kitty-tips
+# https://zsh.sourceforge.io/Doc/Release/Completion-System.html
+#
+# Installation:
+#   Place this file (named _kitty-tips) in a directory listed in your $fpath.
+#   Common locations:
+#     - ~/.zsh/completions/          (add to fpath in ~/.zshrc before compinit)
+#     - /usr/local/share/zsh/site-functions/
+#     - $(brew --prefix)/share/zsh/site-functions/  (macOS with Homebrew)
+#
+#   Example ~/.zshrc:
+#     fpath=(~/.zsh/completions $fpath)
+#     autoload -Uz compinit && compinit
+
+_kitty_tips() {
+    local -a commands categories bookmark_cmds
+
+    # Top-level subcommands with descriptions
+    commands=(
+        'random:Show a random tip'
+        'daily:Show tip of the day'
+        'search:Search tips by keyword'
+        'list:List all tips'
+        'categories:Show all categories with counts'
+        'bookmark:Manage bookmarks'
+        'whatsnew:Show what'\''s new in the latest Kitty release'
+    )
+
+    # Valid categories for the -c flag
+    categories=(
+        Shortcuts
+        Config
+        Appearance
+        Layouts
+        Advanced
+        Performance
+        Integration
+    )
+
+    # Bookmark sub-subcommands with descriptions
+    bookmark_cmds=(
+        'add:Add a bookmark by tip ID'
+        'rm:Remove a bookmark by tip ID'
+        'list:List all bookmarks'
+    )
+
+    _arguments -C \
+        '(- *)'{-h,--help}'[Show help]' \
+        '(- *)'{-v,--version}'[Show version]' \
+        '1:command:->command' \
+        '*::arg:->args'
+
+    case $state in
+        command)
+            _describe -t commands 'kitty-tips commands' commands
+            ;;
+        args)
+            case ${words[1]} in
+                list)
+                    _arguments \
+                        '-c[Filter by category]:category:(${categories})'
+                    ;;
+                bookmark)
+                    # If we are still at the first argument after 'bookmark',
+                    # offer the bookmark sub-subcommands.
+                    if (( CURRENT == 2 )); then
+                        _describe -t bookmark-commands 'bookmark commands' bookmark_cmds
+                    else
+                        # 'add' and 'rm' expect a tip ID -- no file completion.
+                        _message 'tip ID'
+                    fi
+                    ;;
+                search)
+                    _message 'search query'
+                    ;;
+                # random, daily, categories, whatsnew -- no further arguments
+            esac
+            ;;
+    esac
+}
+
+_kitty_tips "$@"

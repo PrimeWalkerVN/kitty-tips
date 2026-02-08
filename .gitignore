@@ -1,0 +1,17 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# User data (generated at runtime)
+# These are in ~/.config/kitty-tips/ so won't be in repo anyway
+
+# Temp files
+*.tmp
+*.bak

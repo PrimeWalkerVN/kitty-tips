@@ -1,0 +1,679 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+VERSION="1.0.0"
+
+# ---------------------------------------------------------------------------
+# Color setup -- use tput when stdout is a TTY, otherwise strip colors
+# ---------------------------------------------------------------------------
+if [ -t 1 ]; then
+    BOLD=$(tput bold)
+    DIM=$(tput dim)
+    RESET=$(tput sgr0)
+    COLOR_GREEN=$(tput setaf 2)
+    COLOR_BLUE=$(tput setaf 4)
+    COLOR_MAGENTA=$(tput setaf 5)
+    COLOR_CYAN=$(tput setaf 6)
+    COLOR_YELLOW=$(tput setaf 3)
+    COLOR_RED=$(tput setaf 1)
+    COLOR_BRIGHT_BLUE=$(tput setaf 14 2>/dev/null || tput setaf 12 2>/dev/null || tput setaf 4)
+else
+    BOLD=""
+    DIM=""
+    RESET=""
+    COLOR_GREEN=""
+    COLOR_BLUE=""
+    COLOR_MAGENTA=""
+    COLOR_CYAN=""
+    COLOR_YELLOW=""
+    COLOR_RED=""
+    COLOR_BRIGHT_BLUE=""
+fi
+
+# ---------------------------------------------------------------------------
+# User data directory
+# ---------------------------------------------------------------------------
+DATA_DIR="${HOME}/.config/kitty-tips"
+BOOKMARKS_FILE="${DATA_DIR}/bookmarks"
+HISTORY_FILE="${DATA_DIR}/daily_history"
+
+ensure_data_dir() {
+    if [ ! -d "$DATA_DIR" ]; then
+        mkdir -p "$DATA_DIR"
+    fi
+    [ -f "$BOOKMARKS_FILE" ] || touch "$BOOKMARKS_FILE"
+    [ -f "$HISTORY_FILE" ] || touch "$HISTORY_FILE"
+}
+
+# ---------------------------------------------------------------------------
+# Tips data  (ID|Category|Title|Description)
+# ---------------------------------------------------------------------------
+read -r -d '' TIPS_DATA << 'TIPS_EOF' || true
+001|Shortcuts|Split Window Horizontally|Press Ctrl+Shift+Enter to create a new window in the current tab. The window is placed according to the active layout (e.g., side-by-side in the Tall layout).
+002|Shortcuts|Close a Window|Press Ctrl+Shift+W to close the currently focused window. If it is the last window in a tab, the tab itself will close.
+003|Shortcuts|Move to Next Window|Press Ctrl+Shift+] to move focus to the next window in the current tab. Use Ctrl+Shift+[ to move to the previous window.
+004|Shortcuts|Switch to Next Tab|Press Ctrl+Shift+Right to switch to the next tab, or Ctrl+Shift+Left for the previous tab. You can also jump to a specific tab with Ctrl+Shift+1 through Ctrl+Shift+9.
+005|Shortcuts|Create a New Tab|Press Ctrl+Shift+T to open a new tab. The new tab opens in the same working directory as the currently focused window by default.
+006|Shortcuts|Increase and Decrease Font Size|Press Ctrl+Shift+Equal to increase font size and Ctrl+Shift+Minus to decrease it. Press Ctrl+Shift+Backspace to reset to the configured default.
+007|Shortcuts|Scroll Output Up and Down|Press Ctrl+Shift+PageUp to scroll up and Ctrl+Shift+PageDown to scroll down. You can also use Ctrl+Shift+K and Ctrl+Shift+J for line-by-line scrolling.
+008|Shortcuts|Open Scrollback in Pager|Press Ctrl+Shift+H to open the scrollback buffer in your configured pager (less by default). This lets you search and navigate through terminal output easily.
+009|Shortcuts|Move a Window Forward|Press Ctrl+Shift+F to move the current window forward in the layout rotation. Use Ctrl+Shift+B to move it backward.
+010|Shortcuts|Toggle Fullscreen|Press Ctrl+Shift+F11 to toggle fullscreen mode. On macOS, you can also use Cmd+Ctrl+F for native fullscreen.
+011|Config|Set Font Family|Add 'font_family FiraCode Nerd Font' to kitty.conf to set your preferred font. Use 'kitty +list-fonts' to see all available fonts on your system.
+012|Config|Set Font Size|Add 'font_size 14.0' to your kitty.conf to set the default font size. You can also change it on the fly with Ctrl+Shift+Equal and Ctrl+Shift+Minus.
+013|Config|Change Default Shell|Add 'shell /opt/homebrew/bin/fish' to kitty.conf to override the default login shell. By default kitty uses the shell set in your user account.
+014|Config|Enable or Disable Bell|Add 'enable_audio_bell no' to kitty.conf to silence the terminal bell. You can also set 'visual_bell_duration 0.3' for a brief screen flash instead of sound.
+015|Config|Set Tab Bar Style|Add 'tab_bar_style powerline' to kitty.conf for a powerline-style tab bar. Other options include 'fade', 'slant', 'separator', 'hidden', and 'custom'.
+016|Config|Configure Scrollback Buffer|Add 'scrollback_lines 10000' to kitty.conf to set how many lines of history to keep. The default is 2000 lines. Higher values use more memory.
+017|Config|Map Custom Keyboard Shortcuts|Use 'map ctrl+alt+t new_tab_with_cwd' in kitty.conf to create custom key bindings. You can map any key combination to kitty actions or shell commands.
+018|Config|Include External Config Files|Add 'include current-theme.conf' to kitty.conf to modularize your configuration. This is how kitty themes are applied -- the themes kitten writes to a separate file.
+019|Config|Configure Update Check Interval|Add 'update_check_interval 24' to kitty.conf to check for updates every 24 hours. Set to 0 to disable. Kitty will notify you in the terminal when an update is available.
+020|Config|Set Window Padding|Add 'window_padding_width 8' to kitty.conf to add inner padding (in points) around the terminal content. You can also specify per-side values like 'window_padding_width 8 12 8 12'.
+021|Appearance|Apply a Color Theme|Run 'kitty +kitten themes' to browse and apply color themes interactively. The selected theme is saved to ~/.config/kitty/current-theme.conf and included in your main config.
+022|Appearance|Set Background Opacity|Add 'background_opacity 0.9' to kitty.conf for a translucent terminal background (value from 0.0 to 1.0). This requires a compositor on Linux or works natively on macOS.
+023|Appearance|Configure Cursor Shape|Add 'cursor_shape beam' to kitty.conf to use a beam cursor. Options are 'block', 'beam', or 'underline'. You can also set 'cursor_blink_interval 0' to disable blinking.
+024|Appearance|Customize Tab Bar Colors|Set 'active_tab_foreground #000' and 'active_tab_background #eee' in kitty.conf to style the active tab. Similarly configure 'inactive_tab_foreground' and 'inactive_tab_background'.
+025|Appearance|Set Window Border Width and Color|Add 'window_border_width 1pt' and 'active_border_color #00ff00' to kitty.conf to customize the border around the focused window. Use 'inactive_border_color' for unfocused windows.
+026|Appearance|Use Nerd Font Symbols|Add 'symbol_map U+E0A0-U+E0A3,U+E0B0-U+E0B3 Symbols Nerd Font' to kitty.conf to use Nerd Font symbols without changing your main font. This lets any font display powerline and icon glyphs.
+027|Appearance|Configure Bold and Italic Fonts|Set 'bold_font auto', 'italic_font auto', and 'bold_italic_font auto' in kitty.conf. Replace 'auto' with specific font names if kitty does not auto-detect the correct variants.
+028|Appearance|Hide Title Bar|Add 'hide_window_decorations titlebar-only' to kitty.conf on macOS to hide the title bar while keeping window controls. Use 'yes' to hide all window decorations.
+029|Appearance|Set Tab Title Template|Add 'tab_title_template "{index}: {title}"' to kitty.conf to customize tab titles. You can use variables like {num_windows}, {layout_name}, and {tab.active_wd}.
+030|Appearance|Adjust Inactive Window Dimming|Add 'inactive_text_alpha 0.7' to kitty.conf to dim text in unfocused windows (value from 0.0 to 1.0). This makes it easy to see which window is currently active.
+031|Layouts|Switch Between Layouts|Press Ctrl+Shift+L to cycle through enabled layouts. You can restrict available layouts with 'enabled_layouts tall,stack,fat,grid' in kitty.conf.
+032|Layouts|Use the Tall Layout|The Tall layout places one large window on the left and stacks remaining windows on the right. Enable it with 'enabled_layouts tall' in kitty.conf. Great for a main editor plus side terminals.
+033|Layouts|Use the Stack Layout|The Stack layout shows only one window at a time, filling the entire tab area. Toggle into it with Ctrl+Shift+L to temporarily maximize a window, then cycle again to return.
+034|Layouts|Use the Grid Layout|The Grid layout arranges windows in a grid pattern, giving each window roughly equal space. It works well when you need to monitor multiple processes simultaneously.
+035|Layouts|Use the Splits Layout|The Splits layout lets you create horizontal and vertical splits freely. Map 'launch --location=hsplit' and 'launch --location=vsplit' to custom keys for precise split control.
+036|Layouts|Resize Windows in a Layout|Press Ctrl+Shift+R to enter resize mode. Then use W/N (wider/narrower) or T/S (taller/shorter) keys to adjust the window size. Press Esc or Enter to finish resizing.
+037|Layouts|Use the Fat Layout|The Fat layout places one wide window on top and stacks remaining windows along the bottom. It is the horizontal counterpart to the Tall layout and works well on ultrawide monitors.
+038|Layouts|Detach a Window to a New Tab|Press Ctrl+Shift+D to detach the current window into a new tab. You can also use 'detach_window new-tab' in a custom mapping for the same effect.
+039|Advanced|Use the SSH Kitten|Run 'kitty +kitten ssh user@host' instead of plain ssh. The SSH kitten copies your kitty terminfo to the remote host automatically, fixing rendering issues with kitty's terminal type.
+040|Advanced|Enable Remote Control|Add 'allow_remote_control yes' to kitty.conf or start kitty with 'kitty --allow-remote-control'. Then use 'kitty @ commands' to control kitty from scripts and other programs.
+041|Advanced|Send Commands via Remote Control|Use 'kitty @ set-colors background=#1e1e2e' to change colors at runtime, or 'kitty @ launch --title mytask bash -c "echo hello"' to open new windows programmatically.
+042|Advanced|Create Custom Kittens|Kittens are Python scripts that run inside kitty. Create a file with a 'main(args)' and 'handle_result(args, answer, target_window_id)' function, then run it with 'kitty +kitten myfile.py'.
+043|Advanced|Use Startup Sessions|Create a session file defining tabs, layouts, and commands, then start kitty with 'kitty --session mysession.conf'. Use 'startup_session' in kitty.conf to load it automatically on every launch.
+044|Advanced|Broadcast Input to All Windows|Map a key to 'map ctrl+alt+b launch --allow-remote-control kitty +kitten broadcast' in kitty.conf. This kitten lets you type into all visible windows simultaneously, useful for multi-server admin tasks.
+045|Advanced|Open URLs with Keyboard|Press Ctrl+Shift+E to activate the hints kitten, which highlights clickable URLs in the terminal output. Type the hint letter to open the URL in your default browser.
+046|Advanced|Check Your Kitty Version|Run 'kitty --version' to see the installed version. For just the version number, run 'kitty +runpy "from kitty.constants import str_version; print(str_version)"'.
+047|Advanced|Update Kitty to Latest Version|Run 'curl -L https://sw.kovidgoyal.net/kitty/installer.sh | sh /dev/stdin' to install or update to the latest kitty release. This is the official recommended update method from the kitty documentation.
+048|Advanced|Follow Kitty Development|Visit https://github.com/kovidgoyal/kitty for the source code, issue tracker, and discussions. Check https://github.com/kovidgoyal/kitty/releases for changelogs and release notes.
+049|Performance|Enable GPU Rendering|Kitty uses GPU rendering by default via OpenGL. Ensure your GPU drivers are up to date for the best performance. On macOS, Metal is used automatically for rendering.
+050|Performance|Reduce Input Latency|Add 'input_delay 0' to kitty.conf to minimize input processing delay. The default is 3 milliseconds. Setting it to 0 can make typing feel more responsive on fast hardware.
+051|Performance|Configure Repaint Delay|Add 'repaint_delay 6' to kitty.conf to set the minimum time (in ms) between screen repaints. Lower values give smoother output but use more CPU. The default is 10ms.
+052|Performance|Sync to Monitor Refresh Rate|Add 'sync_to_monitor yes' to kitty.conf (this is the default). It synchronizes rendering to your monitor's refresh rate, reducing tearing and unnecessary GPU work.
+053|Performance|Optimize Scrollback for Performance|Set 'scrollback_lines 2000' in kitty.conf if you do not need extensive history. Large scrollback buffers consume more RAM. Use 'scrollback_pager_history_size 0' to limit pager memory too.
+054|Performance|Use the Scrollback Pager Efficiently|Set 'scrollback_pager less --chop-long-lines --RAW-CONTROL-CHARS +INPUT_LINE_NUMBER' in kitty.conf. This opens scrollback in less efficiently and jumps to where you were in the output.
+055|Performance|Disable Pointer Shape Changes|Add 'pointer_shape_when_dragging hand' to kitty.conf if you notice cursor flicker. Reducing unnecessary pointer shape changes can help with rendering smoothness on some systems.
+056|Integration|Display Images in Terminal|Run 'kitty +kitten icat image.png' to display images directly in the terminal using kitty's graphics protocol. It supports PNG, JPEG, GIF, BMP, TIFF, and SVG formats.
+057|Integration|Enable Shell Integration|Kitty automatically enables shell integration for bash, zsh, and fish. It adds features like clicking to move the cursor, opening the last command output in a pager, and jumping between prompts.
+058|Integration|Copy to Clipboard from Terminal|Select text with the mouse and it is automatically copied to the clipboard (when 'copy_on_select clipboard' is set in kitty.conf). You can also use Ctrl+Shift+C to copy selected text.
+059|Integration|Paste from Clipboard|Press Ctrl+Shift+V to paste from the system clipboard. On macOS you can also use Cmd+V. Kitty supports bracketed paste mode to safely paste into terminal applications.
+060|Integration|Use Kitty with Neovim|Install the 'vim-kitty-navigator' plugin to seamlessly navigate between Neovim splits and kitty windows using the same key bindings (Ctrl+h/j/k/l).
+061|Integration|Transfer Files over SSH|Run 'kitty +kitten transfer file.txt remote:path/' when connected via the SSH kitten. This transfers files between local and remote machines without needing scp or rsync.
+062|Integration|View Diffs in Terminal|Run 'kitty +kitten diff file1 file2' to see a beautiful side-by-side diff with syntax highlighting directly in kitty. It also supports diffing directories and git diffs.
+063|Integration|Set the Terminal Title from Shell|Use the escape sequence 'printf "\033]2;My Title\033\\"' in your shell to set the kitty window title dynamically. In fish, you can override the fish_title function.
+064|Integration|Use Kitty as Default Terminal on macOS|Run 'open -a kitty' to launch kitty or set it as the default terminal in System Settings. You can also add 'kitty' to your Login Items for auto-start.
+065|Integration|Open Files at Specific Lines from Hints|Press Ctrl+Shift+P then F to use the hints kitten in file path mode. It detects paths (with optional line numbers) in terminal output and opens them in your configured editor.
+TIPS_EOF
+
+# ---------------------------------------------------------------------------
+# Helper: get category color
+# ---------------------------------------------------------------------------
+to_lower() {
+    echo "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+get_category_color() {
+    local category
+    category=$(to_lower "$1")
+    case "$category" in
+        shortcuts)   echo "$COLOR_GREEN" ;;
+        config)      echo "$COLOR_BLUE" ;;
+        appearance)  echo "$COLOR_MAGENTA" ;;
+        layouts)     echo "$COLOR_CYAN" ;;
+        advanced)    echo "$COLOR_YELLOW" ;;
+        performance) echo "$COLOR_RED" ;;
+        integration) echo "$COLOR_BRIGHT_BLUE" ;;
+        *)           echo "$RESET" ;;
+    esac
+}
+
+# ---------------------------------------------------------------------------
+# Helper: word-wrap text to a given width (default 68)
+# ---------------------------------------------------------------------------
+wrap_text() {
+    local text="$1"
+    local width="${2:-68}"
+    echo "$text" | fold -s -w "$width"
+}
+
+# ---------------------------------------------------------------------------
+# Helper: read all tips into arrays
+# ---------------------------------------------------------------------------
+declare -a TIP_IDS=()
+declare -a TIP_CATEGORIES=()
+declare -a TIP_TITLES=()
+declare -a TIP_DESCRIPTIONS=()
+
+load_tips() {
+    TIP_IDS=()
+    TIP_CATEGORIES=()
+    TIP_TITLES=()
+    TIP_DESCRIPTIONS=()
+
+    while IFS='|' read -r id category title description; do
+        # Skip blank lines
+        [ -z "$id" ] && continue
+        TIP_IDS+=("$id")
+        TIP_CATEGORIES+=("$category")
+        TIP_TITLES+=("$title")
+        TIP_DESCRIPTIONS+=("$description")
+    done <<< "$TIPS_DATA"
+}
+
+tip_count() {
+    echo "${#TIP_IDS[@]}"
+}
+
+# Return the array index for a given tip ID, or "" if not found
+index_for_id() {
+    local target="$1"
+    local i
+    for i in "${!TIP_IDS[@]}"; do
+        if [ "${TIP_IDS[$i]}" = "$target" ]; then
+            echo "$i"
+            return
+        fi
+    done
+    echo ""
+}
+
+# ---------------------------------------------------------------------------
+# Display: header box
+# ---------------------------------------------------------------------------
+show_header() {
+    echo "${BOLD}${COLOR_CYAN}╭──────────────────────────────╮${RESET}"
+    echo "${BOLD}${COLOR_CYAN}│   🐱 Kitty Tips & Tricks     │${RESET}"
+    echo "${BOLD}${COLOR_CYAN}╰──────────────────────────────╯${RESET}"
+    echo ""
+}
+
+# ---------------------------------------------------------------------------
+# Display: single tip (full format)
+# ---------------------------------------------------------------------------
+show_tip() {
+    local id="$1"
+    local category="$2"
+    local title="$3"
+    local description="$4"
+
+    local cat_color
+    cat_color=$(get_category_color "$category")
+
+    echo "  ${cat_color}┌─ [${category}] ─────────────────${RESET}"
+    echo "  ${cat_color}│${RESET}"
+    echo "  ${cat_color}│${RESET}  ${BOLD}${title}${RESET}"
+    echo "  ${cat_color}│${RESET}"
+
+    # Word-wrap the description and print each line with the border
+    while IFS= read -r line; do
+        echo "  ${cat_color}│${RESET}  ${line}"
+    done <<< "$(wrap_text "$description" 68)"
+
+    echo "  ${cat_color}│${RESET}"
+    echo "  ${cat_color}│${RESET}  ${DIM}💡 Tip #${id}${RESET}"
+    echo "  ${cat_color}└──────────────────────────────${RESET}"
+}
+
+# ---------------------------------------------------------------------------
+# Display: compact tip (one-liner for list/search)
+# ---------------------------------------------------------------------------
+show_tip_compact() {
+    local id="$1"
+    local category="$2"
+    local title="$3"
+
+    local cat_color
+    cat_color=$(get_category_color "$category")
+
+    printf "  ${DIM}[%s]${RESET} %-40s ${cat_color}[%s]${RESET}\n" "$id" "$title" "$category"
+}
+
+# ---------------------------------------------------------------------------
+# Subcommand: random
+# ---------------------------------------------------------------------------
+cmd_random() {
+    local count
+    count=$(tip_count)
+    if [ "$count" -eq 0 ]; then
+        echo "No tips available."
+        return 1
+    fi
+
+    local idx=$(( RANDOM % count ))
+    show_header
+    show_tip "${TIP_IDS[$idx]}" "${TIP_CATEGORIES[$idx]}" "${TIP_TITLES[$idx]}" "${TIP_DESCRIPTIONS[$idx]}"
+}
+
+# ---------------------------------------------------------------------------
+# Subcommand: daily
+# ---------------------------------------------------------------------------
+cmd_daily() {
+    ensure_data_dir
+
+    local today
+    today=$(date +%Y-%m-%d)
+
+    # Check if we already picked a tip today
+    local existing_id=""
+    if [ -f "$HISTORY_FILE" ]; then
+        existing_id=$(grep "^${today}|" "$HISTORY_FILE" | head -n1 | cut -d'|' -f2 || true)
+    fi
+
+    local count
+    count=$(tip_count)
+    if [ "$count" -eq 0 ]; then
+        echo "No tips available."
+        return 1
+    fi
+
+    local tip_idx
+    if [ -n "$existing_id" ]; then
+        tip_idx=$(index_for_id "$existing_id")
+        if [ -z "$tip_idx" ]; then
+            # ID in history no longer exists; pick fresh
+            existing_id=""
+        fi
+    fi
+
+    if [ -z "$existing_id" ]; then
+        local day_of_year
+        day_of_year=$(date +%j | sed 's/^0*//')   # strip leading zeros
+        tip_idx=$(( day_of_year % count ))
+        existing_id="${TIP_IDS[$tip_idx]}"
+        echo "${today}|${existing_id}" >> "$HISTORY_FILE"
+    fi
+
+    show_header
+    echo "  ${BOLD}📅 Tip of the Day — ${today}${RESET}"
+    echo ""
+    show_tip "${TIP_IDS[$tip_idx]}" "${TIP_CATEGORIES[$tip_idx]}" "${TIP_TITLES[$tip_idx]}" "${TIP_DESCRIPTIONS[$tip_idx]}"
+}
+
+# ---------------------------------------------------------------------------
+# Subcommand: search <query>
+# ---------------------------------------------------------------------------
+cmd_search() {
+    local query="$1"
+
+    if [ -z "$query" ]; then
+        echo "${COLOR_RED}Error: search requires a query string.${RESET}"
+        echo "Usage: kitty-tips search <query>"
+        return 1
+    fi
+
+    local count
+    count=$(tip_count)
+    local found=0
+
+    show_header
+    echo "  ${BOLD}Search results for \"${query}\":${RESET}"
+    echo ""
+
+    local i
+    for i in "${!TIP_IDS[@]}"; do
+        local title_lower
+        title_lower=$(to_lower "${TIP_TITLES[$i]}")
+        local desc_lower
+        desc_lower=$(to_lower "${TIP_DESCRIPTIONS[$i]}")
+        local query_lower
+        query_lower=$(to_lower "$query")
+
+        if [[ "$title_lower" == *"$query_lower"* ]] || [[ "$desc_lower" == *"$query_lower"* ]]; then
+            show_tip_compact "${TIP_IDS[$i]}" "${TIP_CATEGORIES[$i]}" "${TIP_TITLES[$i]}"
+            found=$((found + 1))
+        fi
+    done
+
+    echo ""
+    if [ "$found" -eq 0 ]; then
+        echo "  No tips found matching \"${query}\"."
+    else
+        echo "  ${DIM}${found} tip(s) found.${RESET}"
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Subcommand: list [-c CATEGORY]
+# ---------------------------------------------------------------------------
+cmd_list() {
+    local filter_category=""
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -c)
+                if [ -z "${2:-}" ]; then
+                    echo "${COLOR_RED}Error: -c requires a category name.${RESET}"
+                    return 1
+                fi
+                filter_category="$2"
+                shift 2
+                ;;
+            *)
+                echo "${COLOR_RED}Error: unknown option '$1' for list command.${RESET}"
+                return 1
+                ;;
+        esac
+    done
+
+    show_header
+
+    if [ -n "$filter_category" ]; then
+        echo "  ${BOLD}Tips in category \"${filter_category}\":${RESET}"
+    else
+        echo "  ${BOLD}All tips:${RESET}"
+    fi
+    echo ""
+
+    local found=0
+    local i
+    for i in "${!TIP_IDS[@]}"; do
+        if [ -n "$filter_category" ]; then
+            local cat_lower
+            cat_lower=$(to_lower "${TIP_CATEGORIES[$i]}")
+            local filter_lower
+            filter_lower=$(to_lower "$filter_category")
+            if [ "$cat_lower" != "$filter_lower" ]; then
+                continue
+            fi
+        fi
+        show_tip_compact "${TIP_IDS[$i]}" "${TIP_CATEGORIES[$i]}" "${TIP_TITLES[$i]}"
+        found=$((found + 1))
+    done
+
+    echo ""
+    if [ "$found" -eq 0 ]; then
+        echo "  No tips found."
+    else
+        echo "  ${DIM}${found} tip(s) listed.${RESET}"
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Subcommand: categories
+# ---------------------------------------------------------------------------
+cmd_categories() {
+    show_header
+    echo "  ${BOLD}Categories:${RESET}"
+    echo ""
+
+    # Collect unique categories and counts (Bash 3.2 compatible)
+    local categories_seen=""
+    local i
+    for i in "${!TIP_CATEGORIES[@]}"; do
+        local cat="${TIP_CATEGORIES[$i]}"
+        if ! echo "$categories_seen" | grep -q "^${cat}$"; then
+            categories_seen="${categories_seen}${cat}"$'\n'
+        fi
+    done
+
+    echo "$categories_seen" | sort | while IFS= read -r cat; do
+        [ -z "$cat" ] && continue
+        local count=0
+        for i in "${!TIP_CATEGORIES[@]}"; do
+            if [ "${TIP_CATEGORIES[$i]}" = "$cat" ]; then
+                count=$((count + 1))
+            fi
+        done
+        local cat_color
+        cat_color=$(get_category_color "$cat")
+        printf "  ${cat_color}%-15s${RESET} %s tip(s)\n" "$cat" "$count"
+    done
+    echo ""
+}
+
+# ---------------------------------------------------------------------------
+# Subcommand: bookmark
+# ---------------------------------------------------------------------------
+cmd_bookmark() {
+    ensure_data_dir
+
+    local action="${1:-}"
+
+    case "$action" in
+        add)
+            local id="${2:-}"
+            if [ -z "$id" ]; then
+                echo "${COLOR_RED}Error: bookmark add requires a tip ID.${RESET}"
+                return 1
+            fi
+
+            # Verify tip exists
+            local idx
+            idx=$(index_for_id "$id")
+            if [ -z "$idx" ]; then
+                echo "${COLOR_RED}Error: tip ID '${id}' not found.${RESET}"
+                return 1
+            fi
+
+            # Check for duplicates
+            if grep -qx "$id" "$BOOKMARKS_FILE" 2>/dev/null; then
+                echo "${COLOR_YELLOW}Tip #${id} is already bookmarked.${RESET}"
+                return 0
+            fi
+
+            echo "$id" >> "$BOOKMARKS_FILE"
+            echo "${COLOR_GREEN}Bookmarked tip #${id}: ${TIP_TITLES[$idx]}${RESET}"
+            ;;
+
+        rm|remove)
+            local id="${2:-}"
+            if [ -z "$id" ]; then
+                echo "${COLOR_RED}Error: bookmark rm requires a tip ID.${RESET}"
+                return 1
+            fi
+
+            # Verify tip exists
+            local idx
+            idx=$(index_for_id "$id")
+            if [ -z "$idx" ]; then
+                echo "${COLOR_RED}Error: tip ID '${id}' not found.${RESET}"
+                return 1
+            fi
+
+            if ! grep -qx "$id" "$BOOKMARKS_FILE" 2>/dev/null; then
+                echo "${COLOR_YELLOW}Tip #${id} is not bookmarked.${RESET}"
+                return 0
+            fi
+
+            # Remove the bookmark (portable: write to temp then move)
+            local tmpfile
+            tmpfile=$(mktemp)
+            grep -vx "$id" "$BOOKMARKS_FILE" > "$tmpfile" || true
+            mv "$tmpfile" "$BOOKMARKS_FILE"
+            echo "${COLOR_GREEN}Removed bookmark for tip #${id}: ${TIP_TITLES[$idx]}${RESET}"
+            ;;
+
+        list|ls)
+            show_header
+            echo "  ${BOLD}Bookmarked tips:${RESET}"
+            echo ""
+
+            if [ ! -s "$BOOKMARKS_FILE" ]; then
+                echo "  No bookmarks yet. Use ${BOLD}kitty-tips bookmark add <ID>${RESET} to add one."
+                return 0
+            fi
+
+            local found=0
+            while IFS= read -r bid; do
+                [ -z "$bid" ] && continue
+                local idx
+                idx=$(index_for_id "$bid")
+                if [ -n "$idx" ]; then
+                    show_tip "${TIP_IDS[$idx]}" "${TIP_CATEGORIES[$idx]}" "${TIP_TITLES[$idx]}" "${TIP_DESCRIPTIONS[$idx]}"
+                    echo ""
+                    found=$((found + 1))
+                fi
+            done < "$BOOKMARKS_FILE"
+
+            if [ "$found" -eq 0 ]; then
+                echo "  No valid bookmarks found."
+            else
+                echo "  ${DIM}${found} bookmarked tip(s).${RESET}"
+            fi
+            ;;
+
+        "")
+            echo "${COLOR_RED}Error: bookmark requires an action (add, rm, list).${RESET}"
+            echo "Usage: kitty-tips bookmark <add|rm|list> [ID]"
+            return 1
+            ;;
+
+        *)
+            echo "${COLOR_RED}Error: unknown bookmark action '${action}'.${RESET}"
+            echo "Usage: kitty-tips bookmark <add|rm|list> [ID]"
+            return 1
+            ;;
+    esac
+}
+
+# ---------------------------------------------------------------------------
+# Subcommand: whatsnew
+# ---------------------------------------------------------------------------
+cmd_whatsnew() {
+    show_header
+    echo "  ${BOLD}What's New in Kitty${RESET}"
+    echo ""
+
+    # Show installed version if kitty is available
+    if command -v kitty &>/dev/null; then
+        local installed_ver
+        installed_ver=$(kitty --version 2>/dev/null | head -n1 || echo "unknown")
+        echo "  ${BOLD}Installed:${RESET} ${installed_ver}"
+    else
+        echo "  ${COLOR_YELLOW}Kitty is not installed or not in PATH.${RESET}"
+    fi
+    echo ""
+
+    echo "  ${BOLD}How to update Kitty:${RESET}"
+    echo ""
+    echo "  ${COLOR_CYAN}curl -L https://sw.kovidgoyal.net/kitty/installer.sh | sh /dev/stdin${RESET}"
+    echo ""
+    echo "  ${BOLD}Other ways to stay current:${RESET}"
+    echo ""
+    echo "  ${DIM}1.${RESET} Set ${COLOR_CYAN}update_check_interval 24${RESET} in kitty.conf for auto-notifications"
+    echo "  ${DIM}2.${RESET} Check version: ${COLOR_CYAN}kitty --version${RESET}"
+    echo "  ${DIM}3.${RESET} Browse releases: ${COLOR_CYAN}https://github.com/kovidgoyal/kitty/releases${RESET}"
+    echo "  ${DIM}4.${RESET} View changelog: ${COLOR_CYAN}https://sw.kovidgoyal.net/kitty/changelog/${RESET}"
+    echo "  ${DIM}5.${RESET} macOS Homebrew: ${COLOR_CYAN}brew upgrade --cask kitty${RESET}"
+    echo ""
+
+    # If curl is available, try to fetch the latest release tag from GitHub API
+    if command -v curl &>/dev/null; then
+        echo "  ${DIM}Checking latest release...${RESET}"
+        local latest
+        latest=$(curl -sf --max-time 5 "https://api.github.com/repos/kovidgoyal/kitty/releases/latest" 2>/dev/null \
+            | grep '"tag_name"' | head -n1 | sed 's/.*"tag_name": *"//;s/".*//' || echo "")
+        if [ -n "$latest" ]; then
+            echo "  ${BOLD}Latest release:${RESET} ${COLOR_GREEN}${latest}${RESET}"
+            echo "  ${DIM}Details: https://github.com/kovidgoyal/kitty/releases/tag/${latest}${RESET}"
+        else
+            echo "  ${COLOR_YELLOW}Could not fetch latest release info (offline or rate-limited).${RESET}"
+        fi
+    else
+        echo "  ${COLOR_YELLOW}Install curl to check latest release automatically.${RESET}"
+    fi
+    echo ""
+}
+
+# ---------------------------------------------------------------------------
+# Subcommand: help
+# ---------------------------------------------------------------------------
+cmd_help() {
+    show_header
+    cat << HELPEOF
+  ${BOLD}Usage:${RESET} kitty-tips [command] [options]
+
+  ${BOLD}Commands:${RESET}
+
+    ${BOLD}random${RESET}              Show a random tip (default if no command given)
+    ${BOLD}daily${RESET}               Show the tip of the day
+    ${BOLD}search${RESET} <query>      Search tips by title or description
+    ${BOLD}list${RESET} [-c CATEGORY]  List all tips, optionally filtered by category
+    ${BOLD}categories${RESET}          Show all categories with tip counts
+    ${BOLD}bookmark${RESET} <action>   Manage bookmarked tips
+        ${BOLD}add${RESET} <ID>        Bookmark a tip
+        ${BOLD}rm${RESET} <ID>         Remove a bookmark
+        ${BOLD}list${RESET}            Show all bookmarked tips
+    ${BOLD}whatsnew${RESET}             Check latest Kitty release & update info
+
+  ${BOLD}Options:${RESET}
+
+    ${BOLD}-h, --help${RESET}          Show this help message
+    ${BOLD}-v, --version${RESET}       Show version
+
+  ${BOLD}Examples:${RESET}
+
+    kitty-tips                  Show a random tip
+    kitty-tips daily            Show today's tip
+    kitty-tips search font      Search for tips about fonts
+    kitty-tips list -c Config   List all Config tips
+    kitty-tips bookmark add 001 Bookmark tip #001
+HELPEOF
+}
+
+# ---------------------------------------------------------------------------
+# Subcommand: version
+# ---------------------------------------------------------------------------
+cmd_version() {
+    echo "kitty-tips ${VERSION}"
+}
+
+# ---------------------------------------------------------------------------
+# Main entry point
+# ---------------------------------------------------------------------------
+main() {
+    load_tips
+
+    local command="${1:-random}"
+
+    case "$command" in
+        -h|--help)
+            cmd_help
+            ;;
+        -v|--version)
+            cmd_version
+            ;;
+        random)
+            cmd_random
+            ;;
+        daily)
+            cmd_daily
+            ;;
+        search)
+            shift
+            cmd_search "${1:-}"
+            ;;
+        list)
+            shift
+            cmd_list "$@"
+            ;;
+        categories)
+            cmd_categories
+            ;;
+        bookmark)
+            shift
+            cmd_bookmark "$@"
+            ;;
+        whatsnew)
+            cmd_whatsnew
+            ;;
+        *)
+            echo "${COLOR_RED}Error: unknown command '${command}'.${RESET}"
+            echo "Run ${BOLD}kitty-tips --help${RESET} for usage information."
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"
